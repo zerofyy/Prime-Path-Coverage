@@ -3,10 +3,162 @@
 <head>
     <meta charset = "UTF-8">
     <meta name = "viewport" content = "width=device-width, initial-scale=1.0">
-    <title>Prime Path Coverage Tool</title>
+    <title>Zerofy's Prime Path Coverage Tool</title>
+    <script src = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #compute-btn {
+            background-color: #52b1f9
+        }
+
+        #compute-btn:hover {
+            background-color: #0290fc;
+        }
+
+        #debug-btn {
+            background-color: #f95252
+        }
+
+        #debug-btn:hover {
+            background-color: #fc0f02;
+        }
+
+        #output, #debug {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        #feedback {
+            margin: 20px 0;
+            color: #666;
+        }
+
+        code {
+            background-color: #f5f5f5;
+            color: #fc0f02;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+    </style>
 </head>
 <body>
-    <h1>GitHub Page Test</h1>
-    <p>A path-based testing tool for efficiently computing prime path coverage in directed graphs.</p>
+    <h1>Zerofy's Prime Path Coverage Tool</h1>
+
+    <p>
+        Enter graph edges in the box below.<br>
+        Each line represents an edge between 2 nodes separated with a space ( <code>node1 node2</code> ).<br>
+        Lines starting with <code>#</code> are ignored.
+    </p>
+
+    <span><u><b>The algorithm only works for directed graphs.</b></u></span>
+    <textarea id = "graph_input" placeholder = "Example:
+1 2
+2 3
+2 4
+3 2
+
+This represents a graph with 4 nodes (1, 2, 3, 4) and 4 directed edges (1->2, 2->3, 2->4, 3->2).">
+    </textarea>
+
+    <div style = "display: flex; justify-content: space-between;">
+        <button id = "compute-btn" onclick = "compute_paths()">Compute Prime Paths</button>
+        <button id = "debug-btn" onclick = "toggle_debug()">Toggle Debug Output</button>
+    </div>
+
+    <p></p>
+    <div id = "feedback"></div>
+    <div id = "output"></div>
+    <div id = "debug">Nothing to show yet.</div>
+
+    <script>
+        let pyodide = null;
+        const output = document.getElementById('output');
+        const feedback = document.getElementById('feedback');
+        const debug = document.getElementById('debug');
+
+        function toggle_debug() {
+            debug.style.display = debug.style.display === 'block' ? 'none' : 'block';
+          }
+
+        async function load_python_script() {
+            if (!pyodide) {
+                feedback.textContent = '🐍 Loading Python environment...';
+
+                pyodide = await loadPyodide();
+
+                const response = await fetch('prime_path_coverage.py');
+                const ppc_code = await response.text();
+                await pyodide.runPythonAsync(ppc_code);
+
+                feedback.textContent = '🐍 Python environment loaded successfully.';
+            }
+        }
+
+        async function compute_paths() {
+            let input = document.getElementById('graph_input').value;
+
+            if (!input.trim()) {
+                alert('Please enter a graph.');
+                return;
+            }
+
+            feedback.textContent = '🤔 Computing prime paths...';
+            output.style.display = 'none';
+
+            try {
+                await load_python_script();
+                pyodide.globals.set('graph_input', input);
+
+                const result = await pyodide.runPythonAsync(`
+                    graph = parse_graph(graph_input)
+                    result = compute_prime_paths(graph)
+                    result
+                `);
+
+                const output_paths = result.get('paths');
+                const output_debug = result.get('debug');
+
+                pyodide.globals.set('output_paths', output_paths);
+                output.textContent = await pyodide.runPythonAsync(`format_output(output_paths)`);
+                output.style.display = 'block';
+                feedback.textContent = '✅ Done.';
+
+                debug.textContent = output_debug;
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+                feedback.textContent = '❌ An error occurred while computing prime paths.';
+            } finally {
+                output.style.display = 'block';
+            }
+        }
+    </script>
 </body>
 </html>
